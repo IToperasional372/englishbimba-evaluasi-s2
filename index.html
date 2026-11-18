@@ -1259,37 +1259,41 @@
     function muatDaftarUnit() {
       const loading = document.getElementById("statusLoading");
 
-      google.script.run
-        .withSuccessHandler(function(data) {
+      fetch("/api/units", {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        cache: "no-store"
+      })
+        .then(function(response) {
+          return response.json().then(function(data) {
+            if (!response.ok || !data || !data.success) {
+              throw new Error((data && data.message) || "Gagal memuat daftar unit.");
+            }
+            return data.units;
+          });
+        })
+        .then(function(data) {
           daftarUnit = Array.isArray(data) ? data.filter(function(item) {
             const noCab = String(item.noCab || "").trim();
             const nama = String(item.namaUnit || "").trim();
-
-            // Sembunyikan baris penanda hanya dari tampilan
-            return noCab !== "" &&
-              nama !== "" &&
-              noCab !== "*" &&
-              noCab !== "-" &&
-              nama !== "*" &&
-              nama !== "-";
+            return noCab !== "" && nama !== "" &&
+              noCab !== "*" && noCab !== "-" &&
+              nama !== "*" && nama !== "-";
           }) : [];
 
           loading.textContent =
             daftarUnit.length.toLocaleString("id-ID") +
             " unit tersedia. Ketik untuk mencari.";
-
           document.getElementById("btnSimpan").disabled = false;
         })
-        .withFailureHandler(function(error) {
+        .catch(function(error) {
           loading.textContent = "Gagal memuat daftar unit.";
-
           tampilkanPesan(
             "Terjadi kesalahan saat mengambil data unit: " +
             (error.message || error),
             "error"
           );
-        })
-        .getDaftarUnit();
+        });
     }
 
     // Pencarian berdasarkan No Cabang atau Nama Unit
@@ -1440,45 +1444,46 @@
         noCab: unitTerpilih.noCab
       };
 
-      google.script.run
-        .withSuccessHandler(function(response) {
-          sedangMenyimpan = false;
-          tombol.disabled = false;
-          tombol.textContent = "SIMPAN BIODATA";
-
-          if (response && response.success) {
-            sesiPeserta = response;
-            simpanSesiLokal();
-            document.getElementById("konfNama").textContent = response.namaPeserta || nama;
-            document.getElementById("konfEmail").textContent = response.emailPeserta || email;
-            document.getElementById("konfNomorTelp").textContent = response.nomorTelp || nomorTelp;
-            document.getElementById("konfCabang").textContent = response.noCab || form.noCab;
-            document.getElementById("konfUnit").textContent = response.namaUnit || "-";
-            document.getElementById("formPeserta").style.display = "none";
-            document.getElementById("judulInformasiPeserta").style.display = "none";
-            document.querySelector(".stepper").style.display = "none";
-            document.getElementById("pesan").style.display = "none";
-            tampilkanScreen("screenKonfirmasi");
-          } else {
-            tampilkanPesan(
-              response && response.message
-                ? response.message
-                : "Biodata belum berhasil disimpan.",
-              "error"
-            );
-          }
+      fetch("/api/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(form)
+      })
+        .then(function(response) {
+          return response.json().then(function(data) {
+            if (!response.ok || !data || !data.success) {
+              throw new Error((data && data.message) || "Biodata belum berhasil disimpan.");
+            }
+            return data;
+          });
         })
-        .withFailureHandler(function(error) {
+        .then(function(response) {
           sedangMenyimpan = false;
           tombol.disabled = false;
           tombol.textContent = "SIMPAN BIODATA";
 
+          sesiPeserta = response;
+          simpanSesiLokal();
+          document.getElementById("konfNama").textContent = response.namaPeserta || nama;
+          document.getElementById("konfEmail").textContent = response.emailPeserta || email;
+          document.getElementById("konfNomorTelp").textContent = response.nomorTelp || nomorTelp;
+          document.getElementById("konfCabang").textContent = response.noCab || form.noCab;
+          document.getElementById("konfUnit").textContent = response.namaUnit || "-";
+          document.getElementById("formPeserta").style.display = "none";
+          document.getElementById("judulInformasiPeserta").style.display = "none";
+          document.querySelector(".stepper").style.display = "none";
+          document.getElementById("pesan").style.display = "none";
+          tampilkanScreen("screenKonfirmasi");
+        })
+        .catch(function(error) {
+          sedangMenyimpan = false;
+          tombol.disabled = false;
+          tombol.textContent = "SIMPAN BIODATA";
           tampilkanPesan(
             "Gagal menyimpan biodata: " + (error.message || error),
             "error"
           );
-        })
-        .simpanBiodataPeserta(form);
+        });
     }
 
 
