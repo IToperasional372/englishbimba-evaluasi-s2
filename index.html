@@ -1619,6 +1619,8 @@
         .withSuccessHandler(function(res) {
           if (!res || !res.success || !Array.isArray(res.soal) || !res.soal.length) {
             if (status) status.textContent = "Silakan isi biodata untuk memulai ujian.";
+            hapusSesiLokal();
+            sesiPeserta = null;
             return;
           }
 
@@ -1644,6 +1646,18 @@
             : 0;
 
           statusUjianAktif = true;
+
+          // Jika sesi aktif berhasil dipulihkan, tampilkan hanya layar ujian.
+          // Form biodata tidak boleh tetap terlihat bersamaan dengan soal.
+          const formBiodata = document.getElementById("formPeserta");
+          const judulBiodata = document.getElementById("judulInformasiPeserta");
+          const stepperBiodata = document.querySelector(".stepper");
+          const pesanBiodata = document.getElementById("pesan");
+          if (formBiodata) formBiodata.style.display = "none";
+          if (judulBiodata) judulBiodata.style.display = "none";
+          if (stepperBiodata) stepperBiodata.style.display = "none";
+          if (pesanBiodata) pesanBiodata.style.display = "none";
+
           document.getElementById("examNama").textContent =
             (res.peserta && res.peserta.namaPeserta ? res.peserta.namaPeserta : (sesiPeserta.namaPeserta || "Peserta")) +
             " · English Evaluation";
@@ -1656,7 +1670,9 @@
         .withFailureHandler(function(err) {
           // Token/sesi tidak valid atau sesi sudah selesai.
           console.warn("Pemulihan sesi gagal:", err);
-          if (status) status.textContent = "Sesi sebelumnya tidak dapat dipulihkan. Hubungi admin jika ujian sudah dimulai.";
+          if (status) status.textContent = "Sesi sebelumnya tidak dapat dipulihkan. Silakan isi biodata kembali.";
+          hapusSesiLokal();
+          sesiPeserta = null;
         })
         .mulaiUjianPeserta(tersimpan.sesiUjianID, tersimpan.tokenAkses);
     }
