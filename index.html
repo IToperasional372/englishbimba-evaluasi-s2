@@ -1223,6 +1223,11 @@
     </div>
   </div>
 <script>
+    // Pastikan identifier global `google` tersedia pada browser Vercel.
+    // Google Apps Script runtime tidak tersedia di hosting Vercel.
+    var google = window.google = window.google || {};
+    google.script = google.script || {};
+
     let daftarUnit = [];
     let unitTerpilih = null;
     let sedangMenyimpan = false;
@@ -1255,6 +1260,71 @@
         }
       });
     });
+
+
+    // ==========================================================
+    // BRIDGE GOOGLE.SCRIPT.RUN -> VERCEL API
+    // Semua proses ujian diteruskan melalui /api/exam.
+    // ==========================================================
+    (function() {
+      if (!window.google) window.google = {};
+      if (!window.google.script) window.google.script = {};
+      Object.defineProperty(window.google.script, "run", {
+        configurable: true,
+        get: function() {
+          let successHandler = function() {};
+          let failureHandler = function(error) { console.error(error); };
+          const runner = new Proxy({}, {
+            get: function(_target, method) {
+              if (method === "withSuccessHandler") {
+                return function(callback) {
+                  successHandler = typeof callback === "function" ? callback : function() {};
+                  return runner;
+                };
+              }
+              if (method === "withFailureHandler") {
+                return function(callback) {
+                  failureHandler = typeof callback === "function" ? callback : function(error) { console.error(error); };
+                  return runner;
+                };
+              }
+              if (typeof method === "string") {
+                return function() {
+                  const args = Array.prototype.slice.call(arguments);
+                  const apiAction = {
+                    mulaiUjianPeserta: "startExam",
+                    simpanJawabanSoal: "saveAnswer",
+                    submitUjianPeserta: "submitExam"
+                  }[method];
+                  if (!apiAction) {
+                    failureHandler(new Error("Fungsi API belum tersedia: " + method));
+                    return runner;
+                  }
+                  fetch("/api/exam", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                    cache: "no-store",
+                    body: JSON.stringify({ action: apiAction, args: args })
+                  })
+                  .then(function(response) {
+                    return response.json().then(function(data) {
+                      if (!response.ok || !data || data.success === false) {
+                        throw new Error((data && data.message) || "Permintaan ujian gagal.");
+                      }
+                      return data;
+                    });
+                  })
+                  .then(function(data) { successHandler(data); })
+                  .catch(function(error) { failureHandler(error); });
+                  return runner;
+                };
+              }
+            }
+          });
+          return runner;
+        }
+      });
+    })();
 
     function muatDaftarUnit() {
       const loading = document.getElementById("statusLoading");
